@@ -6,4 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "livekit-agents[google]~=1.0",
+    "mistralai",
+    "loguru",
 ]
