@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import time
+import random
+import asyncio
 
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions ,function_tool,RunContext
@@ -26,7 +28,7 @@ logger.add(
 )
 
 @function_tool
-async def web_search(
+async def web_search_mistral(
     context: RunContext,
     query: str,
 ):
@@ -138,9 +140,175 @@ async def web_search(
         })
         return {"error": f"Web search failed: {str(e)}"}
 
+
+@function_tool
+async def check_weather(
+    context: RunContext,
+    city: str,
+):
+    """Check current weather information for a specific city. Returns comprehensive weather data including temperature, humidity, wind, and forecasts."""
+    
+    start_time = time.time()
+    session_id = getattr(context, 'session_id', 'unknown') if context else 'no_context'
+    
+    logger.info("Weather check initiated", extra={
+        "city": city,
+        "session_id": session_id,
+        "timestamp": datetime.now().isoformat(),
+        "function": "check_weather"
+    })
+    
+    try:
+        # Simulate API call delay
+        await asyncio.sleep(random.uniform(0.1, 0.3))
+        
+        # Get current month for seasonal variations
+        current_month = datetime.now().month
+        
+        # Define seasonal temperature ranges
+        if current_month in [12, 1, 2]:  # Winter
+            temp_base = random.uniform(-5, 15)
+        elif current_month in [3, 4, 5]:  # Spring
+            temp_base = random.uniform(10, 25)
+        elif current_month in [6, 7, 8]:  # Summer
+            temp_base = random.uniform(20, 35)
+        else:  # Fall
+            temp_base = random.uniform(5, 20)
+        
+        # Weather conditions pool
+        weather_conditions = [
+            {"main": "Clear", "description": "clear sky", "icon": "01d"},
+            {"main": "Clouds", "description": "few clouds", "icon": "02d"},
+            {"main": "Clouds", "description": "scattered clouds", "icon": "03d"},
+            {"main": "Clouds", "description": "broken clouds", "icon": "04d"},
+            {"main": "Clouds", "description": "overcast clouds", "icon": "04d"},
+            {"main": "Rain", "description": "light rain", "icon": "10d"},
+            {"main": "Rain", "description": "moderate rain", "icon": "10d"},
+            {"main": "Rain", "description": "heavy rain", "icon": "10d"},
+            {"main": "Thunderstorm", "description": "thunderstorm", "icon": "11d"},
+            {"main": "Snow", "description": "light snow", "icon": "13d"},
+            {"main": "Mist", "description": "mist", "icon": "50d"},
+            {"main": "Fog", "description": "fog", "icon": "50d"}
+        ]
+        
+        # Select weather condition (bias towards clear/cloudy for realism)
+        weather_weights = [0.3, 0.25, 0.15, 0.1, 0.05, 0.05, 0.03, 0.02, 0.02, 0.02, 0.005, 0.005]
+        selected_weather = random.choices(weather_conditions, weights=weather_weights)[0]
+        
+        # Adjust temperature based on weather condition
+        if selected_weather["main"] == "Rain":
+            temp_base -= random.uniform(2, 8)
+        elif selected_weather["main"] == "Snow":
+            temp_base = random.uniform(-15, 5)
+        elif selected_weather["main"] == "Thunderstorm":
+            temp_base -= random.uniform(3, 10)
+        
+        # Generate comprehensive weather data
+        temperature = round(temp_base, 1)
+        feels_like = round(temperature + random.uniform(-5, 5), 1)
+        humidity = random.randint(20, 100)
+        pressure = random.randint(980, 1040)
+        wind_speed = round(random.uniform(0, 25), 1)
+        wind_direction = random.randint(0, 360)
+        wind_gust = round(wind_speed + random.uniform(0, 10), 1) if wind_speed > 5 else wind_speed
+        visibility = round(random.uniform(1, 20), 1)
+        uv_index = random.randint(0, 11)
+        air_quality = random.randint(1, 5)  # 1=Good, 5=Hazardous
+        
+        # Generate coordinates (mock)
+        lat = round(random.uniform(-90, 90), 4)
+        lon = round(random.uniform(-180, 180), 4)
+        
+        # Generate timestamps
+        current_time = datetime.now()
+        sunrise_hour = random.randint(5, 8)
+        sunset_hour = random.randint(17, 20)
+        sunrise = current_time.replace(hour=sunrise_hour, minute=random.randint(0, 59))
+        sunset = current_time.replace(hour=sunset_hour, minute=random.randint(0, 59))
+        
+        # Create comprehensive weather response
+        weather_data = {
+            "location": {
+                "city": city.title(),
+                "country": random.choice(["US", "UK", "CA", "AU", "DE", "FR", "JP", "IN", "BR", "CN"]),
+                "coordinates": {
+                    "latitude": lat,
+                    "longitude": lon
+                }
+            },
+            "current": {
+                "timestamp": current_time.isoformat(),
+                "temperature": {
+                    "current": temperature,
+                    "feels_like": feels_like,
+                    "unit": "°C"
+                },
+                "weather": {
+                    "main": selected_weather["main"],
+                    "description": selected_weather["description"],
+                    "icon": selected_weather["icon"]
+                },
+                "atmospheric": {
+                    "humidity": humidity,
+                    "pressure": pressure,
+                    "pressure_unit": "hPa",
+                    "visibility": visibility,
+                    "visibility_unit": "km"
+                },
+                "wind": {
+                    "speed": wind_speed,
+                    "direction": wind_direction,
+                    "gust": wind_gust,
+                    "unit": "km/h"
+                },
+                "sun": {
+                    "sunrise": sunrise.strftime("%H:%M"),
+                    "sunset": sunset.strftime("%H:%M")
+                },
+                "indices": {
+                    "uv_index": uv_index,
+                    "air_quality_index": air_quality,
+                    "air_quality_description": ["Good", "Fair", "Moderate", "Poor", "Very Poor"][air_quality-1]
+                }
+            },
+            "forecast": {
+                "summary": f"Expect {selected_weather['description']} with temperatures around {temperature}°C",
+                "next_24h": "Conditions will remain similar with slight temperature variations"
+            },
+            "metadata": {
+                "source": "Mock Weather Service",
+                "last_updated": current_time.isoformat(),
+                "response_time_ms": round((time.time() - start_time) * 1000, 2)
+            }
+        }
+        
+        total_duration = time.time() - start_time
+        logger.info("Weather check completed successfully", extra={
+            "city": city,
+            "session_id": session_id,
+            "temperature": temperature,
+            "weather_condition": selected_weather["main"],
+            "total_duration_seconds": round(total_duration, 3),
+            "success": True
+        })
+        
+        return weather_data
+        
+    except Exception as e:
+        total_duration = time.time() - start_time
+        logger.error("Weather check failed with exception", extra={
+            "city": city,
+            "session_id": session_id,
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "total_duration_seconds": round(total_duration, 3),
+            "success": False
+        })
+        return {"error": f"Weather check failed: {str(e)}"}
+
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="You are a helpful voice AI assistant with web search capabilities. You can search for current information on any topic.",tools=[web_search])
+        super().__init__(instructions="You are a helpful voice AI assistant with web search and weather checking capabilities. You can search for current information on any topic and check weather for any city.",tools=[web_search_mistral, check_weather])
 
 
 async def entrypoint(ctx: agents.JobContext):
@@ -149,7 +317,7 @@ async def entrypoint(ctx: agents.JobContext):
             model="gemini-2.0-flash-exp",
             voice="Kore",
             temperature=0.8,
-            instructions="You are a helpful assistant with web search capabilities. You can find current information on news, weather, sports, and any other topics by using web search."
+            instructions="You are a helpful assistant with web search and weather checking capabilities. You can find current information on news, sports, and any other topics by using web search. You can also check weather for any city using the weather tool."
 
         ),
     )
