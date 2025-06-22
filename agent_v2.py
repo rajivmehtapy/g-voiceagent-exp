@@ -10,6 +10,8 @@ from livekit.agents import AgentSession, Agent, RoomInputOptions, function_tool,
 from livekit.plugins import (
     openai,
     google,
+    deepgram,
+    cartesia,
     noise_cancellation,
     silero,
 )
@@ -317,39 +319,64 @@ class Assistant(Agent):
 
 async def entrypoint(ctx: agents.JobContext):
 
-    session = AgentSession(
-        # tts = google.TTS(gender="female",voice_name="en-US-Standard-H",),
-        tts = google.TTS(voice_name="en-US-Chirp-HD-F"),
-        llm=openai.LLM(model="gpt-4.1-nano"),
-        stt = google.STT(model="latest_long", spoken_punctuation=False),
-        vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
-    )
-
     # session = AgentSession(
-    #     stt=deepgram.STT(model="nova-3", language="multi"),
-    #     llm=openai.LLM(model="gpt-4.1-nano"),
-    #     tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+    #     # tts = google.TTS(gender="female",voice_name="en-US-Standard-H",),
+    #     tts = google.TTS(voice_name="en-US-Chirp-HD-F"),
+    #     # llm=google.LLM(model="gemini-2.0-flash-exp",temperature=0.8),
+    #     llm=google.LLM(model="gemini-2.5-flash-lite-preview-06-17",temperature=0.8),
+    #     stt = google.STT(model="latest_long", spoken_punctuation=False),
     #     vad=silero.VAD.load(),
     #     turn_detection=MultilingualModel(),
     # )
 
-    await session.start(
-        room=ctx.room,
-        agent=Assistant(),
-        room_input_options=RoomInputOptions(
-            # LiveKit Cloud enhanced noise cancellation
-            # - If self-hosting, omit this parameter
-            # - For telephony applications, use `BVCTelephony` for best results
-            noise_cancellation=noise_cancellation.BVC(), 
-        ),
+    session = AgentSession(
+        stt=deepgram.STT(model="nova-3", language="multi"),
+        # llm=openai.LLM(model="gpt-4.1-nano"),
+        llm=google.LLM(model="gemini-2.5-flash-lite-preview-06-17",temperature=0.4),
+        tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+        vad=silero.VAD.load(),
+        turn_detection=MultilingualModel(),
     )
 
-    await ctx.connect()
+    import logging
+    import json
+    from livekit.agents._exceptions import APIConnectionError
+    from json.decoder import JSONDecodeError
 
-    await session.generate_reply(
-        instructions="Greet the user and offer your assistance. Mention that you can help with web searches for current information and weather checks for any city."
-    )
+    try:
+        await session.start(
+            room=ctx.room,
+            agent=Assistant(),
+            room_input_options=RoomInputOptions(
+                # LiveKit Cloud enhanced noise cancellation
+                # - If self-hosting, omit this parameter
+                # - For telephony applications, use `BVCTelephony` for best results
+                noise_cancellation=noise_cancellation.BVC(), 
+            ),
+        )
+        await ctx.connect()
+        await session.generate_reply(
+            instructions="Greet the user and offer your assistance. Mention that you can help with web searches for current information and weather checks for any city."
+        )
+    except (APIConnectionError, JSONDecodeError) as e:
+        logger.error("LLM streaming or API connection error encountered", extra={
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "suggestion": "This may be due to a bug in google/genai streaming or malformed JSON. Try upgrading google-generativeai and aiohttp."
+        })
+        print("[ERROR] LLM streaming/API connection error. Consider upgrading google-generativeai and aiohttp.")
+    except Exception as e:
+        logger.error("Unexpected error in entrypoint", extra={
+            "error_type": type(e).__name__,
+            "error_message": str(e)
+        })
+        print(f"[ERROR] Unexpected error: {e}")
+    finally:
+        # Warn if aiohttp sessions are not closed
+        # (This is a best-effort check; if you use aiohttp elsewhere, ensure proper closing.)
+        import warnings
+        warnings.warn("If you see 'Unclosed client session' errors, ensure all aiohttp.ClientSession objects are closed properly.")
+
 
 
 if __name__ == "__main__":
