@@ -15,3 +15,7 @@ others/
 
 # Log files
 logs/
+
+# RPC
+rpc/node_modules
+
