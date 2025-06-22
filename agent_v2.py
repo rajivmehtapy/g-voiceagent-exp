@@ -22,21 +22,22 @@ class Assistant(Agent):
 
 async def entrypoint(ctx: agents.JobContext):
 
-    # session = AgentSession(
-    #     tts = google.TTS(gender="female",voice_name="en-US-Standard-H",),
-    #     llm=openai.LLM(model="gpt-4.1-nano"),
-    #     stt = google.STT(model="chirp", spoken_punctuation=False),
-    #     vad=silero.VAD.load(),
-    #     turn_detection=MultilingualModel(),
-    # )
-
     session = AgentSession(
-        stt=deepgram.STT(model="nova-3", language="multi"),
+        # tts = google.TTS(gender="female",voice_name="en-US-Standard-H",),
+        tts = google.TTS(voice_name="en-US-Chirp-HD-F"),
         llm=openai.LLM(model="gpt-4.1-nano"),
-        tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+        stt = google.STT(model="latest_long", spoken_punctuation=False),
         vad=silero.VAD.load(),
         turn_detection=MultilingualModel(),
     )
+
+    # session = AgentSession(
+    #     stt=deepgram.STT(model="nova-3", language="multi"),
+    #     llm=openai.LLM(model="gpt-4.1-nano"),
+    #     tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+    #     vad=silero.VAD.load(),
+    #     turn_detection=MultilingualModel(),
+    # )
 
     await session.start(
         room=ctx.room,
